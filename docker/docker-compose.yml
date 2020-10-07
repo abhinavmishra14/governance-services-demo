@@ -1,0 +1,63 @@
+version: '3.4'
+services:
+  governance-services-demo-share:
+    image: alfresco-share-governance-services-demo:development
+    build:
+      dockerfile: ./Dockerfile
+      context: ../../../governance-services-demo-share-docker/target
+    environment:
+      CATALINA_OPTS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=0.0.0.0:8888"
+      REPO_HOST: governance-services-demo-acs
+      REPO_PORT: 8080
+    ports:
+      - "${share.port}:8080"
+      - "${share.debug.port}:8888"
+    volumes:
+      - ../../../logs/share:/usr/local/tomcat/logs
+      
+  governance-services-demo-acs:
+    image: alfresco-content-services-governance-services-demo:development
+    build:
+      dockerfile: ./Dockerfile
+      context: ../../../governance-services-demo-platform-docker/target
+    environment:
+      CATALINA_OPTS: "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=0.0.0.0:8888"
+    ports:
+      - "${acs.port}:8080"
+      - "${acs.debug.port}:8888"
+    volumes:
+      - ../../../data/alfresco/alf_data:/usr/local/tomcat/alf_data
+      - ../../../logs/alfresco:/usr/local/tomcat/logs
+    depends_on:
+      - governance-services-demo-postgres
+      
+  governance-services-demo-postgres:
+    image: postgres:9.6
+    environment:
+      POSTGRES_DB: alfresco
+      POSTGRES_USER: alfresco
+      POSTGRES_PASSWORD: alfresco
+    command: postgres -c max_connections=300 -c log_min_messages=LOG
+    ports:
+      - "${postgres.port}:5432"
+    volumes:
+      - ../../../data/postgresql/data:/var/lib/postgresql/data
+      
+  governance-services-demo-ass:
+    image: alfresco/alfresco-search-services:1.4.2.2
+    environment:     
+      #Solr needs to know how to register itself with Alfresco
+      - SOLR_ALFRESCO_HOST=governance-services-demo-acs
+      - SOLR_ALFRESCO_PORT=8080
+      #Alfresco needs to know how to call solr
+      - SOLR_SOLR_HOST=governance-services-demo-ass
+      - SOLR_SOLR_PORT=8983
+      #Create the default alfresco and archive cores
+      - SOLR_CREATE_ALFRESCO_DEFAULTS=alfresco,archive
+      #HTTP by default
+      - ALFRESCO_SECURE_COMMS=none
+    ports:
+      - "8983:8983"
+    volumes:
+      - ../../../data/search-services/contentstore:/opt/alfresco-search-services/contentstore
+      - ../../../data/search-services/data:/opt/alfresco-search-services/data
